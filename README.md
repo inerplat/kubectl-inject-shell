@@ -16,11 +16,12 @@ https://github.com/user-attachments/assets/d9a55893-37d4-48e7-9b04-da9f208abf17
 ## Requirements
 - A Kubernetes cluster with `kubectl` installed and configured.
 - Privileged container creation permissions in the Kubernetes cluster.
+- Currently supports only containerd runtime.
 
 ## Usage
 
 ```bash
-kubectl-inject-shell [options] <pod-name>
+kubectl inject-shell [options] <pod-name>
 ```
 
 ### Options
@@ -44,22 +45,22 @@ kubectl-inject-shell [options] <pod-name>
 
 1. Inject a debugging container into a pod:
    ```bash
-   kubectl-inject-shell -n my-namespace my-pod
+   kubectl inject-shell -n my-namespace my-pod
    ```
 
 2. Specify a custom image for the privileged container:
    ```bash
-   kubectl-inject-shell -n my-namespace -i my-image my-pod
+   kubectl inject-shell -n my-namespace -i my-image my-pod
    ```
 
 3. Enable daemon mode:
    ```bash
-   kubectl-inject-shell --daemon my-pod
+   kubectl inject-shell --daemon my-pod
    ```
 
 4. Use a specific `kubeconfig` and context:
    ```bash
-   kubectl-inject-shell --kubeconfig /path/to/kubeconfig --context my-context my-pod
+   kubectl inject-shell --kubeconfig /path/to/kubeconfig --context my-context my-pod
    ```
 
 ## How It Works
@@ -103,10 +104,6 @@ The `kubectl-inject-shell` script performs the following steps:
 4. **Execution modes:**
    - In non-daemon mode, the script waits for the privileged container to finish its task and then opens a shell in the target container.
    - In daemon mode, it simply creates the privileged container without opening a shell.
-
-## Verbose Logging
-
-Enable verbose mode using the `-v` or `--verbose` flag to get detailed output on the operations being performed.
 
 ## Notes
 

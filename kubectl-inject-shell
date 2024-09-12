@@ -13,7 +13,7 @@ log() {
 }
 
 display_help() {
-    echo "Usage: kubectl-inject-shell [options] <pod-name>"
+    echo "Usage: kubectl inject-shell [options] <pod-name>"
     echo
     echo "Options:"
     echo "  -n, --namespace <namespace>         Specify the namespace of the pod (default: 'default')."
@@ -33,8 +33,8 @@ display_help() {
     echo "  It can create a privileged container on the same node as the target pod, which will access the container's filesystem."
     echo
     echo "  Example usage:"
-    echo "    kubectl-inject-shell -n my-namespace -i my-image my-pod"
-    echo "    kubectl-inject-shell --kubeconfig /path/to/kubeconfig --context my-context -d my-pod"
+    echo "    kubectl inject-shell -n my-namespace -i my-image my-pod"
+    echo "    kubectl inject-shell --kubeconfig /path/to/kubeconfig --context my-context -d my-pod"
     exit 0
 }
 
@@ -115,7 +115,7 @@ if [ -z "$IMAGE" ]; then
 fi
 
 if [ -z "$POD_NAME" ]; then
-    echo "Usage: kubectl-inject-shell [ -n <namespace> ] [ -i <image> ] [ -d ] [ --kubeconfig <config> ] [ --context <context> ] <pod-name> [-c <container-name>]"
+    echo "Usage: kubectl inject-shell [ -n <namespace> ] [ -i <image> ] [ -d ] [ --kubeconfig <config> ] [ --context <context> ] <pod-name> [-c <container-name>]"
     exit 1
 fi
 
@@ -157,7 +157,7 @@ log "Container ID: $CONTAINER_ID"
 # 2. Create privileged container with /host mount on the same node
 log "Creating privileged container with /host mount..."
 
-JOB_NAME="privileged-debugger-$(cat /proc/sys/kernel/random/uuid | cut -d'-' -f1)"
+JOB_NAME="privileged-debugger"
 
 kubectl apply $KUBECTL_OPTS -f - <<EOF
 apiVersion: batch/v1
