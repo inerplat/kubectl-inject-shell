@@ -1,6 +1,6 @@
-# kubectl-debug-inject
+# kubectl-inject
 
-`kubectl-debug-inject` is a powerful script designed to inject a BusyBox environment into a running Kubernetes container, even in environments that lack a shell (e.g., distroless images). The script creates a privileged container on the same node as the target pod, enabling debugging and accessing the container's filesystem. You can specify various options such as the namespace, image, container, and more for customized execution.
+`kubectl-inject` is a powerful script designed to inject a BusyBox environment into a running Kubernetes container, even in environments that lack a shell (e.g., distroless images). The script creates a privileged container on the same node as the target pod, enabling debugging and accessing the container's filesystem. You can specify various options such as the namespace, image, container, and more for customized execution.
 
 ## Features
 - Inject a debugging environment (using BusyBox) into a target container.
@@ -17,7 +17,7 @@
 ## Usage
 
 ```bash
-kubectl-debug-inject [options] <pod-name>
+kubectl-inject [options] <pod-name>
 ```
 
 ### Options
@@ -41,22 +41,22 @@ kubectl-debug-inject [options] <pod-name>
 
 1. Inject a debugging container into a pod:
    ```bash
-   kubectl-debug-inject -n my-namespace my-pod
+   kubectl-inject -n my-namespace my-pod
    ```
 
 2. Specify a custom image for the privileged container:
    ```bash
-   kubectl-debug-inject -n my-namespace -i my-image my-pod
+   kubectl-inject -n my-namespace -i my-image my-pod
    ```
 
 3. Enable daemon mode:
    ```bash
-   kubectl-debug-inject --daemon my-pod
+   kubectl-inject --daemon my-pod
    ```
 
 4. Use a specific `kubeconfig` and context:
    ```bash
-   kubectl-debug-inject --kubeconfig /path/to/kubeconfig --context my-context my-pod
+   kubectl-inject --kubeconfig /path/to/kubeconfig --context my-context my-pod
    ```
 
 ## How It Works
@@ -86,7 +86,7 @@ kubectl-debug-inject [options] <pod-name>
 +---------------------------------------------------------------+
 
 ```
-The `kubectl-debug-inject` script performs the following steps:
+The `kubectl-inject` script performs the following steps:
 
 1. **Retrieve container information:** 
    The script fetches the container ID of the target pod's container, either specified or defaulting to the first container.
