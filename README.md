@@ -1,6 +1,6 @@
-# kubectl-inject
+# kubectl-inject-shell
 
-`kubectl-inject` is a powerful script designed to inject a BusyBox environment into a running Kubernetes container, even in environments that lack a shell (e.g., distroless images). The script creates a privileged container on the same node as the target pod, enabling debugging and accessing the container's filesystem. You can specify various options such as the namespace, image, container, and more for customized execution.
+`kubectl-inject-shell` is a powerful script designed to inject a BusyBox environment into a running Kubernetes container, even in environments that lack a shell (e.g., distroless images). The script creates a privileged container on the same node as the target pod, enabling debugging and accessing the container's filesystem. You can specify various options such as the namespace, image, container, and more for customized execution.
 
 
 https://github.com/user-attachments/assets/a9908922-8b74-4f23-9312-6a55b0c4135b
@@ -21,7 +21,7 @@ https://github.com/user-attachments/assets/a9908922-8b74-4f23-9312-6a55b0c4135b
 ## Usage
 
 ```bash
-kubectl-inject [options] <pod-name>
+kubectl-inject-shell [options] <pod-name>
 ```
 
 ### Options
@@ -45,22 +45,22 @@ kubectl-inject [options] <pod-name>
 
 1. Inject a debugging container into a pod:
    ```bash
-   kubectl-inject -n my-namespace my-pod
+   kubectl-inject-shell -n my-namespace my-pod
    ```
 
 2. Specify a custom image for the privileged container:
    ```bash
-   kubectl-inject -n my-namespace -i my-image my-pod
+   kubectl-inject-shell -n my-namespace -i my-image my-pod
    ```
 
 3. Enable daemon mode:
    ```bash
-   kubectl-inject --daemon my-pod
+   kubectl-inject-shell --daemon my-pod
    ```
 
 4. Use a specific `kubeconfig` and context:
    ```bash
-   kubectl-inject --kubeconfig /path/to/kubeconfig --context my-context my-pod
+   kubectl-inject-shell --kubeconfig /path/to/kubeconfig --context my-context my-pod
    ```
 
 ## How It Works
@@ -90,7 +90,7 @@ kubectl-inject [options] <pod-name>
 +---------------------------------------------------------------+
 
 ```
-The `kubectl-inject` script performs the following steps:
+The `kubectl-inject-shell` script performs the following steps:
 
 1. **Retrieve container information:** 
    The script fetches the container ID of the target pod's container, either specified or defaulting to the first container.
