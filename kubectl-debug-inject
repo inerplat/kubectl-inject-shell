@@ -1,0 +1,269 @@
+#!/bin/bash
+
+# Default values
+DEFAULT_NAMESPACE="default"
+DEFAULT_IMAGE="alpine"
+VERBOSE=false
+
+# Function to handle verbose logging
+log() {
+  if [ "$VERBOSE" = true ]; then
+    echo "$1"
+  fi
+}
+
+display_help() {
+    echo "Usage: kubectl-debug-inject [options] <pod-name>"
+    echo
+    echo "Options:"
+    echo "  -n, --namespace <namespace>         Specify the namespace of the pod (default: 'default')."
+    echo "  -i, --image <image>                 Specify the image to use for the privileged container (default: 'alpine')."
+    echo "  -c, --container <container-name>    Specify the name of the container in the pod to target. (default: first container in pod)"
+    echo "  -d, --daemon                        Enable daemon mode. The script will create a privileged job without exec into the container."
+    echo "  -v, --verbose                       Enable verbose logging."
+    echo "  --kubeconfig <file>                 Use a specific kubeconfig file for kubectl commands."
+    echo "  --context <context>                 Specify a kubectl context to use."
+    echo "  -h, --help                          Display this help message."
+    echo
+    echo "Arguments:"
+    echo "  <pod-name>           Name of the pod to inject the debugging environment into."
+    echo
+    echo "Description:"
+    echo "  This script injects a BusyBox environment into a target pod's container to allow debugging, even if the container lacks a shell."
+    echo "  It can create a privileged container on the same node as the target pod, which will access the container's filesystem."
+    echo
+    echo "  Example usage:"
+    echo "    kubectl-debug-inject -n my-namespace -i my-image my-pod"
+    echo "    kubectl-debug-inject --kubeconfig /path/to/kubeconfig --context my-context -d my-pod"
+    exit 0
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -n|--namespace)
+            NAMESPACE="$2"
+            shift 2
+            ;;
+        -i|--image)
+            IMAGE="$2"
+            shift 2
+            ;;
+        -c|--container)
+            CONTAINER_NAME="$2"
+            shift 2
+            ;;
+        -d|--daemon)
+            DAEMON=true
+            shift
+            ;;
+        -v|--verbose)
+            VERBOSE=true
+            shift
+            ;;
+        --kubeconfig)
+            KUBECONFIG="$2"
+            shift 2
+            ;;
+        --context)
+            CONTEXT="$2"
+            shift 2
+            ;;
+        -h|--help)
+            display_help
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+        *)
+            POD_NAME="$1"
+            shift
+            ;;
+    esac
+done
+
+# If pod name is not provided, show help
+if [ -z "$POD_NAME" ]; then
+    display_help
+fi
+
+# Verbose output if enabled
+if [ "$VERBOSE" = true ]; then
+    echo "Namespace: $NAMESPACE"
+    echo "Image: $IMAGE"
+    echo "Container: $CONTAINER_NAME"
+    echo "Daemon mode: $DAEMON"
+    echo "Verbose mode: $VERBOSE"
+    echo "Kubeconfig: $KUBECONFIG"
+    echo "Context: $CONTEXT"
+    echo "Pod Name: $POD_NAME"
+fi
+
+# If namespace is not specified, use default namespace
+if [ -z "$NAMESPACE" ]; then
+    NAMESPACE=$DEFAULT_NAMESPACE
+fi
+
+# If image is not specified, use default image
+if [ -z "$IMAGE" ]; then
+    IMAGE=$DEFAULT_IMAGE
+fi
+
+if [ -z "$POD_NAME" ]; then
+    echo "Usage: kubectl-debug-inject.sh [ -n <namespace> ] [ -i <image> ] [ -d ] [ --kubeconfig <config> ] [ --context <context> ] <pod-name> [-c <container-name>]"
+    exit 1
+fi
+
+log "Selected namespace: $NAMESPACE"
+log "Pod name: $POD_NAME"
+log "Using image: $IMAGE"
+if [ -n "$CONTAINER_NAME" ]; then
+    log "Container name: $CONTAINER_NAME"
+else
+    log "No container specified, using first container by default."
+fi
+
+# Set kubeconfig and context options for kubectl
+KUBECTL_OPTS=""
+if [ -n "$KUBECONFIG" ]; then
+    KUBECTL_OPTS="--kubeconfig $KUBECONFIG"
+fi
+
+if [ -n "$CONTEXT" ]; then
+    KUBECTL_OPTS="$KUBECTL_OPTS --context $CONTEXT"
+fi
+
+# 1. Get the container ID
+if [ -z "$CONTAINER_NAME" ]; then
+    log "Fetching container ID for the first container..."
+    CONTAINER_ID=$(kubectl get pod $POD_NAME -n $NAMESPACE $KUBECTL_OPTS -o jsonpath="{.status.containerStatuses[0].containerID}" | sed 's#containerd://##')
+else
+    log "Fetching container ID for container $CONTAINER_NAME..."
+    CONTAINER_ID=$(kubectl get pod $POD_NAME -n $NAMESPACE $KUBECTL_OPTS -o jsonpath="{.status.containerStatuses[?(@.name==\"$CONTAINER_NAME\")].containerID}" | sed 's#containerd://##')
+fi
+
+if [ -z "$CONTAINER_ID" ]; then
+    echo "Failed to get container ID for pod $POD_NAME"
+    exit 1
+fi
+
+log "Container ID: $CONTAINER_ID"
+
+# 2. Create privileged container with /host mount on the same node
+log "Creating privileged container with /host mount..."
+
+JOB_NAME="privileged-debugger-$(cat /proc/sys/kernel/random/uuid | cut -d'-' -f1)"
+
+kubectl apply $KUBECTL_OPTS -f - <<EOF
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: $JOB_NAME
+  namespace: $NAMESPACE
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: "$(kubectl get pod $POD_NAME -n $NAMESPACE $KUBECTL_OPTS -o jsonpath='{.spec.nodeName}')"
+      containers:
+        - name: debugger
+          image: $IMAGE
+          securityContext:
+            privileged: true
+          stdin: true
+          tty: true
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - |
+              echo "Container started"
+              echo "Navigating to the target container root filesystem..."
+              TARGET_ROOTFS=/host/run/containerd/io.containerd.runtime.v2.task/k8s.io/$CONTAINER_ID/rootfs
+              echo "Checking directory: \$TARGET_ROOTFS"
+              ls -ld \$TARGET_ROOTFS
+
+              if [ ! -d "\$TARGET_ROOTFS" ]; then
+                echo "Target container filesystem not found at \$TARGET_ROOTFS"
+                exit 1
+              fi
+              echo "Target root filesystem found at \$TARGET_ROOTFS"
+
+              # 3. Copy bin and lib files from Alpine to the target container
+              echo "Copying /bin files from Alpine image to target container..."
+              for file in /bin/*; do
+                if [ ! -e \$TARGET_ROOTFS/bin/$(basename \$file) ]; then
+                  cp -r \$file \$TARGET_ROOTFS/bin/
+                  echo "Copied $(basename \$file) to /bin"
+                else
+                  echo "Skipped $(basename \$file), already exists in /bin"
+                fi
+              done
+
+              echo "Copying /lib files from Alpine image to target container..."
+              for file in /lib/*; do
+                if [ ! -e \$TARGET_ROOTFS/lib/$(basename \$file) ]; then
+                  cp -r \$file \$TARGET_ROOTFS/lib/
+                  echo "Copied $(basename \$file) to /lib"
+                else
+                  echo "Skipped $(basename \$file), already exists in /lib"
+                fi
+              done
+
+              # Create symbolic links for busybox utilities in the target container
+              echo "Creating symbolic links for busybox utilities in the target container..."
+              for cmd in [ [[ acpid add-shell addgroup adduser adjtimex arch arp arping ash awk base64 basename bbconfig bc beep blkdiscard blkid blockdev brctl bunzip2 bzcat bzip2 cal cat chattr chgrp chmod chown chpasswd chroot chvt cksum clear cmp comm cp cpio crond crontab cryptpw cut date dc dd deallocvt delgroup deluser depmod df diff dirname dmesg dnsdomainname dos2unix du dumpkmap echo egrep eject env ether-wake expand expr factor fallocate false fatattr fbset fbsplash fdflush fdisk fgrep find findfs flock fold free fsck fstrim fsync fuser getopt getty grep groups gunzip gzip halt hd head hexdump hostid hostname hwclock id ifconfig ifdown ifenslave ifup init inotifyd insmod install ionice iostat ip ipaddr ipcalc ipcrm ipcs iplink ipneigh iproute iprule iptunnel kbd_mode kill killall killall5 klogd last less link linux32 linux64 ln loadfont loadkmap logger login logread losetup ls lsattr lsmod lsof lsusb lzcat lzma lzop lzopcat makemime md5sum mdev mesg microcom mkdir mkdosfs mkfifo mkfs.vfat mknod mkpasswd mkswap mktemp modinfo modprobe more mount mountpoint mpstat mv nameif nanddump nandwrite nbd-client nc netstat nice nl nmeter nohup nologin nproc nsenter nslookup ntpd od openvt partprobe passwd paste pgrep pidof ping ping6 pipe_progress pivot_root pkill pmap poweroff printenv printf ps pscan pstree pwd pwdx raidautorun rdate rdev readahead readlink realpath reboot reformime remove-shell renice reset resize rev rfkill rm rmdir rmmod route run-parts sed sendmail seq setconsole setfont setkeycodes setlogcons setpriv setserial setsid sh sha1sum sha256sum sha3sum sha512sum showkey shred shuf slattach sleep sort split stat strings stty su sum swapoff swapon switch_root sync sysctl syslogd tac tail tar tee test time timeout top touch tr traceroute traceroute6 tree true truncate tty ttysize tunctl udhcpc udhcpc6 umount uname unexpand uniq unix2dos unlink unlzma unlzop unshare unxz unzip uptime usleep uudecode uuencode vconfig vi vlock volname watch watchdog wc wget which who whoami whois xargs xxd xzcat yes zcat zcip; do
+                if [ ! -e \$TARGET_ROOTFS/bin/\$cmd ]; then
+                  ln -s /bin/busybox \$TARGET_ROOTFS/bin/\$cmd
+                  echo "Created symlink for \$cmd"
+                else
+                  echo "Symlink for \$cmd already exists"
+                fi
+              done
+
+              echo "Files have been successfully linked and copied into the container filesystem."
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /
+            type: Directory
+EOF
+
+if [ "$DAEMON" != true ]; then
+    log "Waiting for the Job to complete..."
+    while true; do
+        STATUS=$(kubectl get job $JOB_NAME -n $NAMESPACE $KUBECTL_OPTS -o jsonpath='{.status.succeeded}')
+        if [[ "$STATUS" =~ ^[0-9]+$ ]] && [ "$STATUS" -ge 1 ]; then
+            log "Job completed successfully."
+            if [ -z "$CONTAINER_NAME" ]; then
+                log "Executing shell in the first container..."
+                kubectl exec -it $POD_NAME -n $NAMESPACE $KUBECTL_OPTS -- /bin/sh
+            else
+                log "Executing shell in container $CONTAINER_NAME..."
+                kubectl exec -it $POD_NAME -n $NAMESPACE -c $CONTAINER_NAME $KUBECTL_OPTS -- /bin/sh
+            fi
+            break
+        fi
+        FAILED=$(kubectl get job $JOB_NAME -n $NAMESPACE $KUBECTL_OPTS -o jsonpath='{.status.failed}')
+        if [[ "$FAILED" =~ ^[0-9]+$ ]] && [ "$FAILED" -gt 0 ]; then
+            echo "Job failed."
+            exit 1
+        fi
+        sleep 2
+    done
+fi
+
+log "Cleaning up..."
+kubectl wait --for=condition=complete job/$JOB_NAME -n $NAMESPACE --timeout=60s $KUBECONFIG_OPTION $CONTEXT_OPTION
+
+kubectl delete job $JOB_NAME -n $NAMESPACE $KUBECONFIG_OPTION $CONTEXT_OPTION
+
+log "Task completed."
