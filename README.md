@@ -24,16 +24,17 @@ kubectl inject-shell [options] <pod-name>
 ```
 
 ### Options
-| Option                      | Description                                                                 |
-|------------------------------|-----------------------------------------------------------------------------|
-| `-n, --namespace <namespace>` | Specify the namespace of the pod (default: 'default').                      |
-| `-i, --image <image>`         | Specify the image to use for the privileged container (default: 'alpine').  |
-| `-c, --container <container>` | Specify the name of the target container (default: first container in pod).  |
-| `-d, --daemon`                | Enable daemon mode. Only creates a privileged job without exec-ing into it. |
-| `-v, --verbose`               | Enable verbose logging for detailed output.                                 |
-| `--kubeconfig <file>`         | Use a specific kubeconfig file for `kubectl` commands.                      |
-| `--context <context>`         | Specify the `kubectl` context to use.                                       |
-| `-h, --help`                  | Display the help message.                                                   |
+| Option                         | Description                                                                 |
+|--------------------------------|-----------------------------------------------------------------------------|
+| `-n, --namespace <namespace>`  | Specify the namespace of the pod (default: 'default').                      |
+| `-i, --image <image>`          | Specify the image to use for the privileged container (default: 'alpine').  |
+| `-c, --container <container>`  | Specify the name of the target container (default: first container in pod).  |
+| `-d, --daemon`                 | Enable daemon mode. Only creates a privileged job without exec-ing into it. |
+| `-v, --verbose`                | Enable verbose logging for detailed output.                                 |
+| `--kubeconfig <file>`          | Use a specific kubeconfig file for `kubectl` commands.                      |
+| `--image-pull-secret <secret>` | Specify the imagePullSecret to use for pulling the image                    |
+| `--context <context>`          | Specify the `kubectl` context to use.                                       |
+| `-h, --help`                   | Display the help message.                                                   |
 
 ### Arguments
 | Argument   | Description                                                |
