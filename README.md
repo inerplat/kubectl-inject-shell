@@ -2,8 +2,7 @@
 
 `kubectl-inject-shell` is a powerful script designed to inject a BusyBox environment into a running Kubernetes container, even in environments that lack a shell (e.g., distroless images). The script creates a privileged container on the same node as the target pod, enabling debugging and accessing the container's filesystem. You can specify various options such as the namespace, image, container, and more for customized execution.
 
-
-https://github.com/user-attachments/assets/d9a55893-37d4-48e7-9b04-da9f208abf17
+https://github.com/user-attachments/assets/513b7a4b-f402-428a-bc1d-634f17338a6a
 
 ## Features
 - Inject a debugging environment (using BusyBox) into a target container.
